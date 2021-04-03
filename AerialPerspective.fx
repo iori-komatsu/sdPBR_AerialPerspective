@@ -2,13 +2,13 @@
 #include "../../shader/sdPBRGBuffer.fxsub"
 
 // パラメータ操作用オブジェクト
-float3 XYZ : CONTROLOBJECT < string name = "(self)"; string item = "XYZ";>;	// 座標
+float3 XYZ : CONTROLOBJECT < string name = "(self)"; string item = "XYZ";>; // 座標
 float Rx : CONTROLOBJECT < string name = "(self)"; string item="Rx";>;
 float Ry : CONTROLOBJECT < string name = "(self)"; string item="Ry";>;
 float Rz : CONTROLOBJECT < string name = "(self)"; string item="Rz";>;
-float Scale : CONTROLOBJECT < string name = "(self)"; string item = "Si";>;	// スケール
-float Tr : CONTROLOBJECT < string name = "(self)"; string item = "Tr";>;	// 透過度
-float3 CameraPosition: POSITION < string Object = "Camera"; >;	// カメラ座標
+float Scale : CONTROLOBJECT < string name = "(self)"; string item = "Si";>; // スケール
+float Tr : CONTROLOBJECT < string name = "(self)"; string item = "Tr";>; // 透過度
+float3 CameraPos: POSITION < string Object = "Camera"; >; // カメラ座標
 
 //いろいろ設定用/////////////////////////////////////////////////////////
 
@@ -69,9 +69,9 @@ float4 VS(
 }
 
 // World空間におけるレイの向きを求める。
-void GetRayDir(float2 coord, out float3 oRayDir) {
+float3 GetRayDir(float2 coord) {
     float2 p = (coord.xy - 0.5) * 2.0;
-    oRayDir = normalize(
+    return normalize(
           ViewMatrix._13_23_33 / ProjectionMatrix._33
         + ViewMatrix._11_21_31 * p.x / ProjectionMatrix._11
         - ViewMatrix._12_22_32 * p.y / ProjectionMatrix._22
@@ -88,10 +88,8 @@ float4 PS(float2 coord: TEXCOORD0) : COLOR
     float alpha;
     GetFrontMaterialFromGBuffer(coord, shadingModelId, normal, depth, alpha);
 
-    float3 rayDir;
-    GetRayDir(coord, rayDir);
-
-    float3 targetPos = CameraPosition + rayDir * depth;
+    float3 rayDir = GetRayDir(coord);
+    float3 targetPos = CameraPos + rayDir * depth;
 
     // Lambert-Beer の法則によると、入射光の強さを I、透過光の強さを T、対象の点までの距離を d とすると
     //   log T = log I - ερd
@@ -104,7 +102,7 @@ float4 PS(float2 coord: TEXCOORD0) : COLOR
     //         = log I + (ε/D) d (exp(-D h_c) - exp(-D h_t)) / (h_c - h_t)
     // ただし h_t は対象の点の標高を表し、h_c はカメラの標高を表す。
 
-    float h_c = max(CameraPosition.y * Scale, 0);
+    float h_c = max(CameraPos.y * Scale, 0);
     float h_t = max(targetPos.y * Scale, 0);
     float dist = min(depth, MaxDistance) * Scale;
 
