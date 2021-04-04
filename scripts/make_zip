@@ -1,0 +1,35 @@
+#!/usr/bin/python3
+import argparse
+import os
+import os.path as path
+import pathlib
+import zipfile
+
+SCRIPT_DIR = pathlib.Path(__file__).resolve().parent
+TOP_DIR = SCRIPT_DIR.parent
+
+def main():
+    parser = argparse.ArgumentParser() 
+    parser.add_argument('dest_dir')
+    args = parser.parse_args()
+
+    with open(TOP_DIR.joinpath('VERSION')) as f:
+        version = f.read().strip()
+
+    archive_name = 'sdPBR_AerialPerspective_' + version
+    archive_path = pathlib.Path(args.dest_dir).joinpath(archive_name + '.zip')
+
+    with zipfile.ZipFile(archive_path, mode='w') as zipf:
+        for filename in os.listdir(TOP_DIR):
+            filepath = pathlib.Path(TOP_DIR).joinpath(filename)
+            if filename == 'VERSION':
+                continue
+            if not filepath.is_file():
+                continue
+            if filepath.name.startswith('.'):
+                continue
+            arcname = pathlib.Path(archive_name).joinpath(filepath.relative_to(TOP_DIR))
+            zipf.write(filepath, arcname=arcname)
+
+if __name__ == '__main__':
+    main()
