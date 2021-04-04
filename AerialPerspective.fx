@@ -2,29 +2,29 @@
 #include "../../shader/sdPBRGBuffer.fxsub"
 
 // パラメータ操作用オブジェクト
-float3 XYZ : CONTROLOBJECT < string name = "(self)"; string item = "XYZ";>; // 座標
-float Rx : CONTROLOBJECT < string name = "(self)"; string item="Rx";>;
-float Ry : CONTROLOBJECT < string name = "(self)"; string item="Ry";>;
-float Rz : CONTROLOBJECT < string name = "(self)"; string item="Rz";>;
-float Scale : CONTROLOBJECT < string name = "(self)"; string item = "Si";>; // スケール
-float Tr : CONTROLOBJECT < string name = "(self)"; string item = "Tr";>; // 透過度
-float3 CameraPos: POSITION < string Object = "Camera"; >; // カメラ座標
-
-//いろいろ設定用/////////////////////////////////////////////////////////
+float3 XYZ  : CONTROLOBJECT < string name = "(self)"; string item = "XYZ";  >; // 座標
+float3 Rxyz : CONTROLOBJECT < string name = "(self)"; string item = "Rxyz"; >; // 回転
+float  Si   : CONTROLOBJECT < string name = "(self)"; string item = "Si";   >; // スケール
+float  Tr   : CONTROLOBJECT < string name = "(self)"; string item = "Tr";   >; // 透過度
 
 // フォグの色
-static float3 FogColor = HSVtoRGB(float3(0.6+Rx, 0.2+Ry, 0.8+Rz));
+static float3 FogColor = HSVtoRGB(float3(0.6, 0.2, 0.8) + Rxyz);
 
 // 吸光係数
-static float Absorptivity  = 0.000003 * exp(XYZ.x * 0.01);
+static float Absorptivity = 0.00003 * exp(XYZ.x * 0.01);
 
 // 標高と大気の密度の関係
-static float DensityFactor = 0.0000048 * exp(XYZ.y * 0.05);
+static float DensityFactor = 0.000048 * exp(XYZ.y * 0.05);
 
-// これ以上距離が離れている場合、この距離だとして計算する
-static float MaxDistance = XYZ.z <= 0.0 ? 1e15 : XYZ.z;
+// 元の色とフォグ色を混ぜるときに最低でもこの割合だけは元の色を残す
+static float MinOriginalColorMixRatio = saturate(XYZ.z * 0.01);
 
-//設定ここまで以下はコードです////////////////////////////////////////
+// スケール (アクセサリの Si はUIで指定された値の10倍が取得されるので、もとに戻す)
+static float Scale = Si * 0.1;
+
+//-------------------------------------------------------------------------------------------------
+
+float3 CameraPos : POSITION < string Object = "Camera"; >;
 
 float4x4 ViewMatrix	: VIEW;
 float4x4 ProjectionMatrix : PROJECTION;
@@ -104,9 +104,9 @@ float4 PS(float2 coord: TEXCOORD0) : COLOR
 
     float h_c = max(CameraPos.y * Scale, 0);
     float h_t = max(targetPos.y * Scale, 0);
-    float dist = min(depth, MaxDistance) * Scale;
+    float dist = depth * Scale;
 
-    float a;
+    float a; // 負の吸光度。値域は -∞ から 0 まで
     if (abs(h_t - h_c) < 0.01) {
         a = -Absorptivity * exp(-DensityFactor * h_t) * dist;
     } else {
@@ -115,7 +115,8 @@ float4 PS(float2 coord: TEXCOORD0) : COLOR
             / (h_c - h_t);
     }
 
-    float3 outColor = lerp(FogColor, inColor, exp(a));
+    float mixRatio = max(exp(a), MinOriginalColorMixRatio);
+    float3 outColor = lerp(FogColor, inColor, mixRatio);
     return float4(outColor, inColor.a);
 }
 
