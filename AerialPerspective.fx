@@ -59,6 +59,13 @@ sampler2D ScnSamp = sampler_state {
     AddressU  = CLAMP; AddressV = CLAMP;
 };
 
+shared texture sdPBR_Depth : OFFSCREENRENDERTARGET;
+sampler ZSamp = sampler_state {
+	Texture = <sdPBR_Depth>;
+	MinFilter = POINT; MagFilter = POINT; MipFilter = POINT;
+	AddressU = CLAMP; AddressV = CLAMP;
+};
+
 float4 VS(
     float4 pos : POSITION,
     float2 coord : TEXCOORD0,
@@ -81,12 +88,11 @@ float3 GetRayDir(float2 coord) {
 float4 PS(float2 coord: TEXCOORD0) : COLOR
 {
     float4 inColor = tex2D(ScnSamp, coord);
+    float depth = tex2D(ZSamp, coord).r;
 
-    int shadingModelId;
-    float3 normal;
-    float depth;
-    float alpha;
-    GetFrontMaterialFromGBuffer(coord, shadingModelId, normal, depth, alpha);
+    if (depth < -9000) {
+        return inColor;
+    }
 
     float3 rayDir = GetRayDir(coord);
     float3 targetPos = CameraPos + rayDir * depth;
@@ -116,7 +122,7 @@ float4 PS(float2 coord: TEXCOORD0) : COLOR
     }
 
     float mixRatio = max(exp(a), MinOriginalColorMixRatio);
-    float3 outColor = lerp(FogColor, inColor, mixRatio);
+    float3 outColor = lerp(FogColor, inColor.rgb, mixRatio);
     return float4(outColor, inColor.a);
 }
 
