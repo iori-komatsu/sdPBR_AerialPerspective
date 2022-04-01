@@ -104,21 +104,23 @@ float4 PS(float2 coord: TEXCOORD0) : COLOR
     // そこで、大気の密度を以下のように標高 h の関数として表せると仮定する。
     //   ρ(h) = exp(-Dh)      (D は定数)
     // この式を Lambert-Beer の式の入れて積分すると透過光の強さが求められる。
-    //   log T = ∫[0,1] (log I - ε ρ(lerp(h_t, h_c, x)) d) dx
-    //         = log I + (ε/D) d (exp(-D h_c) - exp(-D h_t)) / (h_c - h_t)
+    //   log T = log I - ∫[x_c,x_t] (ε ρ(h(x)) sqrt(1 + s^2) dx
+    //           (ここで s = (h_t - h_c) / (x_t - x_c) とおいた)
+    //         = log I - ε exp(-D h_c) sqrt(1 + s^2) {1 - exp(-D (h_t - h_c))} / sD
     // ただし h_t は対象の点の標高を表し、h_c はカメラの標高を表す。
 
     float h_c = max(CameraPos.y * Scale, 0);
     float h_t = max(targetPos.y * Scale, 0);
-    float dist = depth * Scale;
+    float horizontalDist = distance(CameraPos.xz, targetPos.xz) * Scale;
 
     float a; // 負の吸光度。値域は -∞ から 0 まで
     if (abs(h_t - h_c) < 0.01) {
-        a = -Absorptivity * exp(-DensityFactor * h_t) * dist;
+        a = -Absorptivity * exp(-DensityFactor * h_c) * horizontalDist;
     } else {
-        a = (Absorptivity / DensityFactor) * dist
-            * (exp(-DensityFactor * h_c) - exp(-DensityFactor * h_t))
-            / (h_c - h_t);
+        float slope = (h_t - h_c) / horizontalDist;
+        a = -Absorptivity * exp(-DensityFactor * h_c)
+          * length(float2(1, slope)) * (1 - exp(-DensityFactor * (h_t - h_c)))
+          / (DensityFactor * slope);
     }
 
     float mixRatio = max(exp(a), MinOriginalColorMixRatio);
